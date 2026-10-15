@@ -3,6 +3,9 @@
 Chef asks what you want to cook, finds a recipe on the web, reads out the ingredients a few at a
 time, then talks you through each step. It listens for your answer on its own (or you can type).
 
+## Run it online
+https://cookpal-sooty.vercel.app/
+
 ## Run it on your machine
 
 ```
