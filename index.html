@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CookPal</title>
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F2F4F0;
+    --surface: #E4EAE3;
+    --ink: #1B2724;
+    --muted: #55645F;
+    --line: #C7D2CA;
+    --basil: #2D6A4F;
+    --on-basil: #FFFFFF;
+    --saffron: #F2B134;
+    --on-saffron: #2B1D00;
+    --beet: #9A2C4D;
+    --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #121A17;
+      --surface: #1B2723;
+      --ink: #E7EEE9;
+      --muted: #9DB0A7;
+      --line: #2C3C36;
+      --basil: #5BB58A;
+      --on-basil: #0C1914;
+      --beet: #F08AA6;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--paper);
+    color: var(--ink);
+    font: 1.0625rem/1.5 var(--body);
+  }
+  :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+
+  .app {
+    max-width: 40rem;
+    min-height: 100dvh;
+    margin: 0 auto;
+    padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+             max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  /* header */
+  .top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  .dish {
+    margin: 0;
+    font: 700 1.25rem/1.2 var(--display);
+    letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+  }
+  .link {
+    border: 0; background: none; padding: .5rem 0; font: inherit; color: var(--muted);
+    text-decoration: underline; text-underline-offset: 3px; cursor: pointer; white-space: nowrap;
+  }
+  .link:hover { color: var(--ink); }
+
+  /* progress: one segment per step */
+  .progress { display: grid; gap: .5rem; }
+  .segments { display: flex; gap: 3px; }
+  .segments span { flex: 1; height: .5rem; border-radius: 2px; background: var(--line); }
+  .segments span.done { background: var(--basil); }
+  .segments span.now { background: var(--saffron); }
+  .progress-label { margin: 0; color: var(--muted); font-size: .95rem; }
+
+  /* the line the chef just said, big enough to read from across the kitchen */
+  .stage { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 2rem; padding: 1rem 0; }
+  .line, .intro h2 {
+    margin: 0;
+    font: 600 clamp(1.75rem, 5.4vw, 2.75rem)/1.15 var(--display);
+    letter-spacing: -0.015em;
+    text-wrap: pretty;
+  }
+  .line { min-height: 7.5rem; }
+  .intro { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1.25rem; }
+  .intro p { margin: 0; max-width: 32rem; color: var(--muted); }
+
+  .controls { display: grid; justify-items: center; gap: .75rem; }
+  .mic {
+    position: relative;
+    width: 7rem; height: 7rem;
+    border: 0; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--basil); color: var(--on-basil);
+    cursor: pointer;
+    transition: background-color .15s, transform .1s, box-shadow .2s;
+  }
+  .mic:active { transform: scale(.96); }
+  .mic:disabled { opacity: .45; cursor: default; transform: none; }
+  .mic svg { width: 2.75rem; height: 2.75rem; }
+  .mic .icon-stop { display: none; }
+  /* ready and listening for you to start talking */
+  .mic[data-mode="listening"] { box-shadow: 0 0 0 .5rem var(--line); }
+  /* hearing you: the ring pulses */
+  .mic[data-mode="recording"] { background: var(--saffron); color: var(--on-saffron); }
+  .mic[data-mode="recording"] .icon-mic { display: none; }
+  .mic[data-mode="recording"] .icon-stop { display: block; }
+  .mic[data-mode="recording"]::after {
+    content: ""; position: absolute; inset: -.6rem; border-radius: 50%;
+    border: 3px solid var(--saffron);
+    animation: ring 1.4s ease-out infinite;
+  }
+  @keyframes ring { from { transform: scale(.88); opacity: .9; } to { transform: scale(1.22); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .mic[data-mode="recording"]::after { animation: none; opacity: .55; }
+  }
+
+  .status { margin: 0; min-height: 1.5rem; color: var(--muted); text-align: center; }
+  .status.error { color: var(--beet); font-weight: 700; }
+
+  .toggle {
+    display: flex; align-items: center; gap: .6rem;
+    min-height: 2.75rem; color: var(--muted); cursor: pointer;
+  }
+  .toggle input { width: 1.25rem; height: 1.25rem; accent-color: var(--basil); }
+
+  .button {
+    justify-self: start;
+    border: 0; border-radius: .75rem;
+    padding: .9rem 1.5rem;
+    background: var(--basil); color: var(--on-basil);
+    font: 700 1.125rem/1 var(--display);
+    cursor: pointer;
+  }
+  .button:disabled { opacity: .5; cursor: default; }
+
+  /* quiet conversation log */
+  .log {
+    list-style: none; margin: 0; padding: 0;
+    max-height: 11rem; overflow-y: auto;
+    display: grid; gap: .6rem;
+    font-size: .95rem;
+  }
+  .log li { padding-left: .75rem; border-left: 2px solid var(--line); color: var(--muted); }
+  .log li.you { border-left-color: var(--basil); color: var(--ink); }
+  .log b { font-weight: 700; margin-right: .35rem; color: var(--ink); }
+
+  .typed { display: flex; gap: .5rem; }
+  .typed input {
+    flex: 1; min-width: 0; min-height: 2.75rem;
+    padding: 0 .9rem;
+    border: 1.5px solid var(--line); border-radius: .6rem;
+    background: var(--surface); color: var(--ink);
+    font: inherit;
+  }
+  .typed button {
+    min-height: 2.75rem; padding: 0 1.1rem;
+    border: 0; border-radius: .6rem;
+    background: var(--surface); color: var(--ink);
+    font: 700 1rem var(--body); cursor: pointer;
+  }
+  .typed button:disabled { opacity: .5; cursor: default; }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <h1 class="dish" id="dish">CookPal</h1>
+    <button class="link" id="end" type="button" hidden>End session</button>
+  </header>
+
+  <section class="progress" id="progress" hidden>
+    <div class="segments" id="segments" aria-hidden="true"></div>
+    <p class="progress-label" id="progressLabel"></p>
+  </section>
+
+  <section class="intro" id="intro">
+    <h2>What are we cooking?</h2>
+    <p>CookPal finds a recipe, reads out the ingredients, then talks you through every step. When it's your turn, just talk.</p>
+    <button class="button" id="start" type="button">Start cooking</button>
+    <p>Your browser will ask to use the microphone. You can also type your answers.</p>
+  </section>
+
+  <section class="stage" id="stage" hidden>
+    <p class="line" id="line" aria-live="polite"></p>
+    <div class="controls">
+      <button class="mic" id="mic" type="button" data-mode="idle" aria-label="Talk to Chef">
+        <svg class="icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+          <path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path>
+        </svg>
+        <svg class="icon-stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+        </svg>
+      </button>
+      <p class="status" id="status" aria-live="polite"></p>
+      <label class="toggle">
+        <input type="checkbox" id="handsFree" checked>
+        <span>Listen automatically</span>
+      </label>
+    </div>
+  </section>
+
+  <ol class="log" id="log" aria-label="Conversation" hidden></ol>
+
+  <form class="typed" id="typed" hidden>
+    <input id="typedInput" type="text" autocomplete="off" enterkeyhint="send"
+           placeholder="Or type your answer" aria-label="Type your answer">
+    <button type="submit" id="typedSend">Send</button>
+  </form>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    dish: $('dish'), end: $('end'), progress: $('progress'), segments: $('segments'),
+    progressLabel: $('progressLabel'), intro: $('intro'), start: $('start'), stage: $('stage'),
+    line: $('line'), mic: $('mic'), status: $('status'), handsFree: $('handsFree'), log: $('log'),
+    typed: $('typed'), typedInput: $('typedInput'), typedSend: $('typedSend'),
+  };
+
+  // ---------- listening settings ----------
+  const MAX_RECORD_MS = 25000;    // the server rejects anything much longer
+  const START_TIMEOUT_MS = 10000; // after a tap, give up if nobody speaks
+  const END_SILENCE_MS = 1200;    // a pause this long ends your turn
+  const SPEECH_START_MS = 130;    // how long it must be loud before we call it speech
+  const MIN_SPEECH_MS = 250;      // less than this is a click or a cough, not an answer
+  const PREROLL_MS = 400;         // audio kept from just before you spoke, so no first word is cut
+  const CALIBRATION_MS = 500;     // how long we listen to the room before judging what is speech
+  const LISTEN_DELAY_MS = 350;    // let the end of the chef's voice fade before listening
+  const MIN_THRESHOLD = 0.008;    // volume that counts as speech is never below this
+  const NOISE_MULTIPLIER = 3;     // speech must be this many times louder than the room
+  const MAX_NOISE = 0.03;         // a very noisy room can't push the bar out of reach
+  const OUT_RATE = 16000;         // sample rate we send to the server
+  // A silent WAV, played on the first tap so mobile browsers let us play audio later.
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+
+  let state = null;          // the session state; the server hands it back after every turn
+  let mode = 'idle';         // idle | listening | recording | working | speaking
+  let ended = false;
+  let handsFree = true;
+  try { handsFree = localStorage.getItem('chef-hands-free') !== '0'; } catch (_) {}
+  el.handsFree.checked = handsFree;
+
+  let stream = null, audioCtx = null, sampleRate = 48000, micReady = false;
+  let listenTimer = null;
+  let accessCode = '';
+  try { accessCode = sessionStorage.getItem('chef-code') || ''; } catch (_) {}
+  let wakeLock = null;
+
+  const player = new Audio();
+  let endPlayback = null;
+  let speechToken = 0;
+
+  // ---------- UI ----------
+
+  function setUi(next, message = '') {
+    mode = next;
+    el.mic.dataset.mode = next;
+    el.mic.disabled = ended || next === 'working';
+    el.mic.setAttribute('aria-label', next === 'recording' ? 'Send now' : 'Talk to Chef');
+    el.typedSend.disabled = ended || next === 'working';
+    el.status.className = 'status';
+    const defaults = {
+      idle: micReady ? 'Tap to talk' : 'The microphone is off. Type your answer below.',
+      listening: 'Listening. Just start talking.',
+      recording: "Go ahead. I'll send it when you pause.",
+      working: 'Thinking…',
+      speaking: 'Chef is speaking. Tap to interrupt.',
+    };
+    el.status.textContent = message || defaults[next] || '';
+  }
+
+  function showError(message) {
+    el.status.className = 'status error';
+    el.status.textContent = message;
+  }
+
+  function showLine(text) { el.line.textContent = text; }
+
+  function addLog(who, text) {
+    const li = document.createElement('li');
+    if (who === 'You') li.className = 'you';
+    const b = document.createElement('b');
+    b.textContent = who;
+    li.append(b, document.createTextNode(text));
+    el.log.append(li);
+    el.log.scrollTop = el.log.scrollHeight;
+  }
+
+  function updateHeader() {
+    const r = state && state.recipe;
+    el.dish.textContent = r ? r.name : 'Chef';
+    if (!(state && state.phase === 'cook' && r)) { el.progress.hidden = true; return; }
+    const total = r.prep.length + r.cooking.length;
+    const now = state.finished ? total : state.current;
+    el.segments.replaceChildren(...Array.from({ length: total }, (_, i) => {
+      const s = document.createElement('span');
+      if (i < now) s.className = 'done';
+      else if (i === now) s.className = 'now';
+      return s;
+    }));
+    el.progressLabel.textContent = state.finished ? 'All steps done' : `Step ${state.current + 1} of ${total}`;
+    el.progress.hidden = false;
+  }
+
+  // ---------- talking to the server ----------
+
+  async function api(path, init = {}) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const headers = { ...(init.headers || {}) };
+      if (accessCode) headers['X-Access-Code'] = accessCode;
+      const res = await fetch(path, { ...init, headers });
+      if (res.status === 401 && attempt === 0) {
+        const entered = window.prompt('Enter the access code');
+        if (!entered) throw new Error('Chef needs an access code. Reload the page to try again.');
+        accessCode = entered.trim();
+        try { sessionStorage.setItem('chef-code', accessCode); } catch (_) {}
+        continue;
+      }
+      if (!res.ok) {
+        if (res.status === 401) { try { sessionStorage.removeItem('chef-code'); } catch (_) {} }
+        let detail = '';
+        try { detail = (await res.json()).detail; } catch (_) {}
+        throw new Error(typeof detail === 'string' && detail ? detail
+          : `Something went wrong (${res.status}). Try again.`);
+      }
+      return res.json();
+    }
+  }
+
+  const postJson = (path, body) => api(path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+
+  // ---------- speaking ----------
+
+  function playBase64(b64) {
+    return new Promise((resolve) => {
+      endPlayback = () => { endPlayback = null; resolve(); };
+      player.onended = player.onerror = endPlayback;
+      player.src = 'data:audio/mpeg;base64,' + b64;
+      player.play().catch(endPlayback);
+    });
+  }
+
+  function speakWithBrowser(text) {
+    return new Promise((resolve) => {
+      if (!('speechSynthesis' in window)) return resolve();
+      const u = new SpeechSynthesisUtterance(text);
+      u.onend = u.onerror = () => resolve();
+      speechSynthesis.speak(u);
+    });
+  }
+
+  function stopSpeaking() {
+    speechToken++;
+    player.pause();
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    if (endPlayback) endPlayback();
+  }
+
+  async function speakAll(lines, audio) {
+    const token = ++speechToken;
+    resetCapture('off');   // never listen while the chef talks, or it hears itself
+    setUi('speaking');
+    for (let i = 0; i < lines.length; i++) {
+      if (token !== speechToken) return;           // interrupted
+      showLine(lines[i]);
+      addLog('Chef', lines[i]);
+      if (audio[i]) await playBase64(audio[i]);
+      else await speakWithBrowser(lines[i]);       // server speech failed: use the browser's voice
+    }
+  }
+
+  // ---------- one turn ----------
+
+  async function applyResponse(data) {
+    if (ended) return;  // the session was ended while this request was in flight
+    state = data.state;
+    updateHeader();
+    await speakAll(data.say, data.audio);
+    if (data.done) { endSession(); return; }
+    if (data.auto_continue) {
+      // The recipe lookup can take a while; the chef has already said so.
+      setUi('working', 'Looking for a recipe…');
+      await applyResponse(await postJson('/api/continue', { state }));
+    }
+  }
+
+  async function submitTurn(form) {
+    resetCapture('off');
+    setUi('working');
+    try {
+      const data = await api('/api/turn', { method: 'POST', body: form });
+      if (data.transcript) addLog('You', data.transcript);
+      await applyResponse(data);
+    } catch (err) {
+      rest();
+      showError(err.message || 'Something went wrong. Try again.');
+      return;
+    }
+    rest();
+  }
+
+  function submitAudio(blob) {
+    const form = new FormData();
+    form.append('state', JSON.stringify(state));
+    form.append('audio', blob, 'speech.wav');
+    return submitTurn(form);
+  }
+
+  // ---------- microphone ----------
+
+  async function ensureMic() {
+    if (micReady) {
+      if (audioCtx.state === 'suspended') await audioCtx.resume().catch(() => {});
+      return;
+    }
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new Ctx();
+    await audioCtx.resume().catch(() => {});
+    sampleRate = audioCtx.sampleRate;
+    const source = audioCtx.createMediaStreamSource(stream);
+    // ScriptProcessor is old but works in every browser, and we only need raw samples.
+    const processor = audioCtx.createScriptProcessor(2048, 1, 1);
+    processor.onaudioprocess = (e) => onChunk(new Float32Array(e.inputBuffer.getChannelData(0)));
+    const mute = audioCtx.createGain();   // the processor only runs if it reaches the output;
+    mute.gain.value = 0;                  // this keeps it silent so we don't hear ourselves
+    source.connect(processor);
+    processor.connect(mute);
+    mute.connect(audioCtx.destination);
+    micReady = true;
+  }
+
+  function micMessage(err) {
+    if (err && err.name === 'NotAllowedError') {
+      return 'Chef can\'t use the microphone. Allow it in your browser\'s site settings, or type your answers below.';
+    }
+    if (err && err.name === 'NotFoundError') return 'No microphone found. You can type your answers below.';
+    return 'The microphone isn\'t available here. You can type your answers below.';
+  }
+
+  // ---------- listening: hear when you start and stop talking ----------
+  //
+  // Raw samples arrive in small chunks. In "waiting" we keep a short rolling buffer and
+  // watch the volume; once it has been loud long enough we start recording, beginning with
+  // that buffer so your first word isn't cut off. A pause ends the recording. The result is
+  // encoded as a WAV file in the browser, so it plays the same on every browser.
+
+  const cap = { noise: null, calib: [], calibMs: 0 };
+
+  function resetCapture(next) {
+    clearTimeout(listenTimer);
+    Object.assign(cap, {
+      state: next,            // off | waiting | recording
+      frames: [], preroll: [], prerollMs: 0,
+      loudRun: 0, loudMs: 0, quietMs: 0, spokenMs: 0, waitedMs: 0, heard: false,
+    });
+  }
+  resetCapture('off');
+
+  const rms = (a) => {
+    let sum = 0;
+    for (let i = 0; i < a.length; i++) sum += a[i] * a[i];
+    return Math.sqrt(sum / a.length);
+  };
+  const threshold = () => Math.max(MIN_THRESHOLD, cap.noise * NOISE_MULTIPLIER);
+
+  function onChunk(chunk) {
+    if (cap.state === 'off') return;
+    const ms = (chunk.length / sampleRate) * 1000;
+    const level = rms(chunk);
+
+    // First time listening: measure the room before judging what counts as speech.
+    if (cap.noise === null) {
+      if (cap.state !== 'waiting') {
+        cap.noise = 0.01;                          // started by a tap; use a sensible default
+      } else {
+        cap.calib.push(level);
+        cap.calibMs += ms;
+        if (cap.calibMs >= CALIBRATION_MS) {
+          cap.calib.sort((a, b) => a - b);
+          // A low percentile, so talking during calibration doesn't raise the bar too far.
+          cap.noise = Math.min(MAX_NOISE, cap.calib[Math.floor(cap.calib.length * 0.2)]);
+        }
+        return;
+      }
+    }
+
+    const loud = level > threshold();
+
+    if (cap.state === 'waiting') {
+      cap.preroll.push(chunk);
+      cap.prerollMs += ms;
+      while (cap.prerollMs > PREROLL_MS && cap.preroll.length > 1) {
+        cap.prerollMs -= (cap.preroll[0].length / sampleRate) * 1000;
+        cap.preroll.shift();
+      }
+      if (loud) {
+        cap.loudRun += ms;
+      } else {
+        cap.loudRun = 0;
+        // Follow the room's noise slowly, so a fan switching on doesn't count as speech.
+        cap.noise = Math.min(MAX_NOISE, 0.97 * cap.noise + 0.03 * level);
+      }
+      if (cap.loudRun >= SPEECH_START_MS) {
+        cap.state = 'recording';
+        cap.frames = cap.preroll;
+        cap.spokenMs = cap.prerollMs;
+        cap.loudMs = cap.loudRun;
+        cap.heard = true;
+        cap.preroll = [];
+        setUi('recording');
+      }
+      return;
+    }
+
+    // recording
+    cap.frames.push(chunk);
+    cap.spokenMs += ms;
+    if (loud) {
+      cap.heard = true;
+      cap.loudMs += ms;
+      cap.quietMs = 0;
+    } else if (cap.heard) {
+      cap.quietMs += ms;
+    } else {
+      cap.waitedMs += ms;
+    }
+    if ((cap.heard && cap.quietMs >= END_SILENCE_MS) || cap.spokenMs >= MAX_RECORD_MS) {
+      finishRecording();
+    } else if (!cap.heard && cap.waitedMs >= START_TIMEOUT_MS) {
+      resetCapture('off');   // tapped, but nobody spoke
+      rest();
+    }
+  }
+
+  function startRecordingNow() {
+    resetCapture('recording');
+    if (cap.noise === null) cap.noise = 0.01;
+    setUi('recording');
+  }
+
+  function finishRecording() {
+    const { frames, loudMs } = cap;
+    resetCapture('off');
+    if (loudMs < MIN_SPEECH_MS) { rest(); return; }   // a click or a cough: keep waiting
+    submitAudio(encodeWav(frames, sampleRate));
+  }
+
+  // 16-bit mono WAV at 16 kHz: a small file any speech service accepts.
+  function encodeWav(frames, inRate) {
+    const total = frames.reduce((n, f) => n + f.length, 0);
+    const merged = new Float32Array(total);
+    let offset = 0;
+    for (const f of frames) { merged.set(f, offset); offset += f.length; }
+
+    const ratio = inRate / OUT_RATE;
+    const outLen = Math.floor(total / ratio);
+    const buf = new ArrayBuffer(44 + outLen * 2);
+    const v = new DataView(buf);
+    const text = (at, s) => { for (let i = 0; i < s.length; i++) v.setUint8(at + i, s.charCodeAt(i)); };
+    text(0, 'RIFF'); v.setUint32(4, 36 + outLen * 2, true); text(8, 'WAVE');
+    text(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, OUT_RATE, true); v.setUint32(28, OUT_RATE * 2, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    text(36, 'data'); v.setUint32(40, outLen * 2, true);
+
+    for (let i = 0; i < outLen; i++) {
+      // Average the input samples that fall into each output sample (a simple low-pass).
+      const start = Math.floor(i * ratio);
+      const end = Math.min(total, Math.floor((i + 1) * ratio));
+      let sum = 0;
+      for (let j = start; j < end; j++) sum += merged[j];
+      const s = Math.max(-1, Math.min(1, end > start ? sum / (end - start) : 0));
+      v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+
+  // Back to resting: start listening on our own (if that's switched on) or wait for a tap.
+  function rest() {
+    if (ended || cap.state !== 'off') return;
+    clearTimeout(listenTimer);
+    if (handsFree && micReady) {
+      setUi('listening');
+      listenTimer = setTimeout(() => {
+        if (!ended && cap.state === 'off' && mode === 'listening') resetCapture('waiting');
+      }, LISTEN_DELAY_MS);
+    } else {
+      setUi('idle');
+    }
+  }
+
+  // ---------- session ----------
+
+  function endSession() {
+    ended = true;
+    stopSpeaking();
+    resetCapture('off');
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    if (audioCtx) audioCtx.close().catch(() => {});
+    if (wakeLock) wakeLock.release().catch(() => {});
+    el.end.hidden = true;
+    el.mic.hidden = true;
+    el.handsFree.closest('label').hidden = true;
+    el.typed.hidden = true;
+    setUi('idle', '');
+    const again = document.createElement('button');
+    again.className = 'button';
+    again.type = 'button';
+    again.textContent = 'Cook something else';
+    again.addEventListener('click', () => location.reload());
+    el.status.replaceChildren(again);
+  }
+
+  async function keepScreenOn() {
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (_) {}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !ended && 'wakeLock' in navigator) keepScreenOn();
+  });
+
+  // ---------- events ----------
+
+  el.start.addEventListener('click', async () => {
+    // Unlock audio playback inside this tap, or phones will block the chef's voice later.
+    player.src = SILENT_WAV;
+    player.play().catch(() => {});
+
+    el.intro.hidden = true;
+    el.stage.hidden = false;
+    el.log.hidden = false;
+    el.typed.hidden = false;
+    el.end.hidden = false;
+    keepScreenOn();
+
+    setUi('working', 'Starting…');
+    let micProblem = '';
+    try { await ensureMic(); } catch (err) { micProblem = micMessage(err); }
+    try {
+      await applyResponse(await api('/api/start', { method: 'POST' }));
+    } catch (err) {
+      rest();
+      showError(err.message || 'Something went wrong. Reload the page to try again.');
+      return;
+    }
+    rest();
+    if (micProblem) showError(micProblem);
+  });
+
+  el.mic.addEventListener('click', async () => {
+    if (ended || mode === 'working') return;
+    if (mode === 'recording') { finishRecording(); return; }            // send now
+    if (mode === 'speaking' && state && state.pending_lookup) return;   // can't interrupt a lookup
+    try {
+      await ensureMic();
+    } catch (err) {
+      rest();
+      showError(micMessage(err));
+      return;
+    }
+    if (mode === 'speaking') stopSpeaking();
+    startRecordingNow();   // a tap means "I'm talking now"
+  });
+
+  el.handsFree.addEventListener('change', () => {
+    handsFree = el.handsFree.checked;
+    try { localStorage.setItem('chef-hands-free', handsFree ? '1' : '0'); } catch (_) {}
+    // While the chef is speaking or thinking this takes effect at the next pause.
+    if (ended || mode === 'working' || mode === 'speaking' || mode === 'recording') return;
+    if (handsFree) {
+      rest();
+    } else {
+      resetCapture('off');
+      setUi('idle');
+    }
+  });
+
+  el.typed.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = el.typedInput.value.trim();
+    if (!text || ended || mode === 'working' || mode === 'recording') return;
+    el.typedInput.value = '';
+    stopSpeaking();
+    const form = new FormData();
+    form.append('state', JSON.stringify(state));
+    form.append('text', text);
+    submitTurn(form);
+  });
+
+  el.end.addEventListener('click', () => { if (!ended) endSession(); });
+
+  // Space works as the mic button when nothing else has focus.
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && document.activeElement === document.body && !el.stage.hidden && !ended) {
+      e.preventDefault();
+      el.mic.click();
+    }
+  });
+})();
+</script>
+</body>
+</html>

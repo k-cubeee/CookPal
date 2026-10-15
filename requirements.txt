@@ -1,0 +1,11 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9   # needed by FastAPI for audio uploads
+pydantic>=2
+python-dotenv
+anthropic                 # keep current: structured outputs and web search need a recent release
+elevenlabs                # keep current: the keyterms option needs a recent release
+
+# Only for running the tests (pytest)
+pytest
+httpx
