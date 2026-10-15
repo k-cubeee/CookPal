@@ -63,3 +63,5 @@ uvicorn server:app --host 0.0.0.0 --port $PORT
 - Steps are read out exactly as written, so a substitution you mention is remembered for questions but
   not applied to the step text.
 - Scribe's keyterm hints cost extra per request.
+
+**DISCLAIMER: I made this in an afternoon using claude and elevenlabs for a hackathon called Accel Innovate**
